@@ -1,11 +1,16 @@
 import os
-import sys
 import shutil
 
 import math
+import json
 import logging
 
 from scapy.all import sniff, IPv6, IP, UDP, TCP, rdpcap, wrpcap
+
+portTable={
+  'HTTP': 80,
+  'HTTPS': 443
+}
 
 class Connection():
   def __init__(self, parent, pcap, portsId, duration, incomingStats, outgoingStats):
@@ -17,7 +22,36 @@ class Connection():
     self.outgoingStats=outgoingStats
 
   def save(self, path):
-    print('Saving to '+path)
+    path=path+'/'+self.portsId
+    print('Saving to '+path)    
+    data=self.serialize()
+    s=json.dumps(data)
+    f=open(path, 'w')
+    f.write(s)
+    f.close()
+
+  def serialize(self):
+    return {
+      'duration': self.duration,
+      'incomingStats': self.incomingStats.serialize(),
+      'outgoingStats': self.outgoingStats.serialize()
+    }
+
+class Stats():
+  def __init__(self, parent, lengths, content, entropy, flow):
+    self.parent=parent
+    self.lengths=lengths
+    self.content=content
+    self.entropy=entropy
+    self.flow=flow
+
+  def serialize(self):
+    return {
+      'lengths': self.lengths,
+      'content': self.content,
+      'entropy': self.entropy,
+      'flow': self.flow
+    }
 
 def calculateEntropy(contents):
   total=sum(contents)
@@ -131,7 +165,12 @@ def calculateDuration(timestamps):
     l=sorted(timestamps)
     first=timestamps[0]
     last=timestamps[-1]
-    return last-first
+    duration=last-first
+    if duration<0:
+      print('Error! Negative duration! %d' % (duration))
+      return 0
+    else:
+      return duration
 
 class StreamStatInfo:
   def __init__(self):
@@ -170,6 +209,7 @@ class CaptureStats:
 
   def processPcap(self, streamfile):
     self.splitStreams(streamfile)
+    print("Processing %d streams" % (len(self.streams.keys())))
     for key in self.streams:
       packets=self.streams[key]
       infos=self.data[key]
@@ -181,7 +221,7 @@ class CaptureStats:
         for packet in side:
           self.processPacket(key, index, packet)
 
-      return self.combineStreams()
+    return self.combineStreams()
 
   def splitStreams(self, tracefile):
     try:
@@ -189,6 +229,7 @@ class CaptureStats:
     except:
       logging.error('Error reading pcap file '+tracefile)
       return
+    print("Processing %d packets" % (len(list(packets))))
     for packet in packets:
       if ('IP' in packet or 'IPv6' in packet) and ('TCP' in packet or 'UDP' in packet) and 'Raw' in packet and len(packet.load)>0:
         ports=getPorts(packet)
@@ -197,7 +238,7 @@ class CaptureStats:
         elif self.port==ports[1]:
           portIndex=1
         else:
-          #logging.error('Unknown port')
+          #print('Unknown ports %d/%d' % (ports[0], ports[1]))
           continue
         sports=getSortedPorts(packet)
         if ports:
@@ -239,6 +280,7 @@ class CaptureStats:
   def combineStreams(self):
     conns=[]
     pstats=PcapStatInfo()
+    print("Combining %d streams" % (len(self.data.keys())))
     for key in self.data:
       info=self.data[key]
       info[0].entropy=calculateEntropy(info[0].content)
@@ -255,12 +297,12 @@ class CaptureStats:
       pstats.isizes=pstats.isizes+info[0].sizes
       pstats.icontent=pstats.icontent+info[0].content
       pstats.ientropy.append(info[0].entropy)
-      pstats.iflow=pstats.iflow+info[0].flow
+      pstats.iflow=pstats.iflow+list(info[0].flow)
 
       pstats.osizes=pstats.osizes+info[1].sizes
       pstats.ocontent=pstats.ocontent+info[1].content
       pstats.oentropy.append(info[1].entropy)
-      pstats.oflow=pstats.oflow+info[1].flow
+      pstats.oflow=pstats.oflow+list(info[1].flow)
 
 #    pistats=DirectionalSummaryStats(parent=pcap, lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
 #    postats=DirectionalSummaryStats(parent=pcap, lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
@@ -268,23 +310,29 @@ class CaptureStats:
 
     return conns
 
-def makeConns(dataset, protocol, pcap):
-  stats=CaptureStats(port)
-  conns=stats.processPcap(pcap)
+def makeConns(dataset, protocol, pcap, port):
+  print('Processing '+dataset+' '+protocol+' '+pcap)
+  stats=CaptureStats(pcap, port)
+  conns=stats.processPcap('pcaps/'+dataset+'/'+protocol+'/'+pcap)
+  print("Found %d conns" % (len(conns)))
   for conn in conns:
     conn.save('conns/'+dataset+'/'+protocol+'/'+pcap)
 
-port=int(sys.argv[1])
 datasets=os.listdir('pcaps')
+datasets=datasets[:1] # FIXME, for testing, remove
+if not os.path.exists('conns'):
+  os.mkdir('conns')
 for dataset in datasets:
   if not os.path.exists('conns/'+dataset):
     os.mkdir('conns/'+dataset)
-  protocols=os.listdir('protocols')
+  protocols=os.listdir('pcaps/'+dataset)
+  protocols=protocols[:1] # FIXME, for testing, remove
   for protocol in protocols:
     if not os.path.exists('conns/'+dataset+'/'+protocol):
       os.mkdir('conns/'+dataset+'/'+protocol)
-    pcaps=os.listdir('conns/'+dataset+'/'+protocol)
+    pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
+    pcaps=pcaps[1:2] # FIXME, for testing, remove
     for pcap in pcaps:
       if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
         os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)
-      makeConns(dataset, protocol, pcap, port)
+      makeConns(dataset, protocol, pcap, portTable[protocol])
