@@ -48,11 +48,7 @@ def fitLength(lengths):
   logging.info((theta1, sigma1))
   logging.info('Length results:')
   logging.info(list((theta1, sigma1)))
-  normal=Normal(mean=theta1, sd=sigma1)
-  normal.save()
-  logging.info(normal)
-  model=LengthModel(distribution=normal)
-  model.save()
+  model=LengthModel(mean=theta1, sd=sigma1)
   logging.info(model)
   return model
 
@@ -69,10 +65,7 @@ def fitDuration(lengths):
   logging.info(samples)
   l=mean(samples['lambda'])
   logging.info(l)
-  exp=Exponential(parameter=l)
-  exp.save()
-  model=DurationModel(distribution=exp)
-  model.save()
+  model=DurationModel(parameter=l)
   return model
 
 def fitEntropy(samples):
@@ -93,10 +86,7 @@ def fitEntropy(samples):
   sigma1=mean(samples['sigma'])
   logging.info((theta1, sigma1))
   logging.info(list((theta1, sigma1)))
-  normal=Normal(mean=theta1, sd=sigma1)
-  normal.save()
-  model=EntropyModel(distribution=normal)
-  model.save()
+  model=EntropyModel(mean=theta1, sd=sigma1)
   return model
 
 def checkEntropy(sample):
@@ -113,10 +103,7 @@ def fitFlow(samples):
   logging.info(samples)
   l=mean(samples['lambda'])
   logging.info(l)
-  pois=Poisson(parameter=l)
-  pois.save()
-  model=FlowModel(distribution=pois)
-  model.save()
+  model=FlowModel(parameter=l)
   return model
 
 def fitContent(counts):
@@ -132,10 +119,7 @@ def fitContent(counts):
   thetas=samples['theta']
   theta=map(float, list(thetas[0])) # FIXME - This is a bad way to generate a summary statistic for theta
   logging.info(theta)
-  multi=Multinomial(distribution=theta)
-  multi.save()
-  model=ContentModel(distribution=multi)
-  model.save()
+  model=ContentModel(distribution=theta)
   return model
 
 class DurationModel:
@@ -150,7 +134,7 @@ class FlowModel:
     self.parameter=parameter
 
   def serialize(self):
-    return {'dist': 'flow', 'params': [self.parameter]}    
+    return {'dist': 'poisson', 'params': [self.parameter]}    
 
 class EntropyModel:
   def __init__(self, mean, sd):
@@ -176,7 +160,7 @@ class ContentModel:
     return {'dist': 'multinomial', 'params': self.distribution}    
 
 class StatsModel:
-  def __init(self, length, entropy, flow, content):
+  def __init__(self, length, entropy, flow, content):
     self.length=length
     self.entropy=entropy
     self.flow=flow
@@ -198,7 +182,7 @@ class AdversaryProtocolModel:
 
   def serialize(self):
     return {
-      'duration': self.duration,
+      'duration': self.duration.serialize(),
       'incomingModel': self.incomingModel.serialize(),
       'outgoingModel': self.outgoingModel.serialize()
     }
@@ -232,28 +216,28 @@ def write(model, path):
 def train(p, n):
   print('Training')
   pduration=fitDuration(p['duration'])
-  pilength=fitLength(p['incoming']['length'])
-  pientropy=fitEntropy(p['incoming']['entropy'])
-  piflow=fitFlow(p['incoming']['flow'])
-  picontent=fitContent(p['incoming']['content'])
+  pilength=fitLength(p['incomingStats']['lengths'])
+  pientropy=fitEntropy(p['incomingStats']['entropy'])
+  piflow=fitFlow(p['incomingStats']['flow'])
+  picontent=fitContent(p['incomingStats']['content'])
   pimodel=StatsModel(length=pilength, entropy=pientropy, flow=piflow, content=picontent)
-  polength=fitLength(p['outgoing']['length'])
-  poentropy=fitEntropy(p['outgoing']['entropy'])
-  poflow=fitFlow(p['outgoing']['flow'])
-  pocontent=fitContent(p['outgoing']['content'])
+  polength=fitLength(p['outgoingStats']['lengths'])
+  poentropy=fitEntropy(p['outgoingStats']['entropy'])
+  poflow=fitFlow(p['outgoingStats']['flow'])
+  pocontent=fitContent(p['outgoingStats']['content'])
   pomodel=StatsModel(length=polength, entropy=poentropy, flow=poflow, content=pocontent)
   pmodel=AdversaryProtocolModel(pduration, pimodel, pomodel)
 
   nduration=fitDuration(n['duration'])
-  nilength=fitLength(n['incoming']['length'])
-  nientropy=fitEntropy(n['incoming']['entropy'])
-  niflow=fitFlow(n['incoming']['flow'])
-  nicontent=fitContent(n['incoming']['content'])
+  nilength=fitLength(n['incomingStats']['lengths'])
+  nientropy=fitEntropy(n['incomingStats']['entropy'])
+  niflow=fitFlow(n['incomingStats']['flow'])
+  nicontent=fitContent(n['incomingStats']['content'])
   nimodel=StatsModel(length=pilength, entropy=pientropy, flow=piflow, content=picontent)
-  nolength=fitLength(n['outgoing']['length'])
-  noentropy=fitEntropy(n['outgoing']['entropy'])
-  noflow=fitFlow(n['outgoing']['flow'])
-  nocontent=fitContent(n['outgoing']['content'])
+  nolength=fitLength(n['outgoingStats']['lengths'])
+  noentropy=fitEntropy(n['outgoingStats']['entropy'])
+  noflow=fitFlow(n['outgoingStats']['flow'])
+  nocontent=fitContent(n['outgoingStats']['content'])
   nimodel=StatsModel(length=nilength, entropy=nientropy, flow=niflow, content=nicontent)
   nomodel=StatsModel(length=nolength, entropy=noentropy, flow=noflow, content=nocontent)
   nmodel=AdversaryProtocolModel(nduration, nimodel, nomodel)

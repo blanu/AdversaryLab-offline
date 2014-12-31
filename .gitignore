@@ -1,2 +1,6 @@
 pcaps
 conns
+*.pkl
+adversaries
+encodings
+protocols
