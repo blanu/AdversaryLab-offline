@@ -23,7 +23,7 @@ class Connection():
 
   def save(self, path):
     path=path+'/'+self.portsId
-    print('Saving to '+path)    
+    print('Saving to '+path)
     data=self.serialize()
     s=json.dumps(data)
     f=open(path, 'w')
@@ -319,19 +319,16 @@ def makeConns(dataset, protocol, pcap, port):
     conn.save('conns/'+dataset+'/'+protocol+'/'+pcap)
 
 datasets=os.listdir('pcaps')
-datasets=datasets[:1] # FIXME, for testing, remove
 if not os.path.exists('conns'):
   os.mkdir('conns')
 for dataset in datasets:
   if not os.path.exists('conns/'+dataset):
     os.mkdir('conns/'+dataset)
   protocols=os.listdir('pcaps/'+dataset)
-  protocols=protocols[:1] # FIXME, for testing, remove
   for protocol in protocols:
     if not os.path.exists('conns/'+dataset+'/'+protocol):
       os.mkdir('conns/'+dataset+'/'+protocol)
     pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
-    pcaps=pcaps[1:2] # FIXME, for testing, remove
     for pcap in pcaps:
       if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
         os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)

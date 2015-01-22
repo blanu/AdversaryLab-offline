@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 
 import math
 import json
@@ -11,18 +12,6 @@ portTable={
   'HTTP': 80,
   'HTTPS': 443
 }
-
-class PcapStatInfo:
-  def __init__(self):
-    self.duration=[]
-    self.isizes=[0]*1500
-    self.icontent=[0]*256
-    self.ientropy=[]
-    self.iflow=[]
-    self.osizes=[0]*1500
-    self.ocontent=[0]*256
-    self.oentropy=[]
-    self.oflow=[]
 
 class Connection():
   def __init__(self, parent, pcap, portsId, duration, incomingStats, outgoingStats):
@@ -49,71 +38,9 @@ class Connection():
       'outgoingStats': self.outgoingStats.serialize()
     }
 
-class DatasetProtocolStats():
-  def __init__(self, dataset, protocol, duration, incomingStats, outgoingStats):
-    self.dataset=dataset
-    self.protocol=protocol
-    self.duration=duration
-    self.incomingStats=incomingStats
-    self.outgoingStats=outgoingStats
-
-  def save(self, path):
-    path=path+'/'+self.dataset+'/'+self.protocol
-    print('Saving to '+path)
-    data=self.serialize()
-    s=json.dumps(data)
-    f=open(path, 'w')
-    f.write(s)
-    f.close()
-
-  def serialize(self):
-    return {
-      'duration': self.duration,
-      'incomingStats': self.incomingStats.serialize(),
-      'outgoingStats': self.outgoingStats.serialize()
-    }
-
-class ProtocolStats():
-  def __init__(self, protocol, duration, incomingStats, outgoingStats):
-    self.protocol=protocol
-    self.duration=duration
-    self.incomingStats=incomingStats
-    self.outgoingStats=outgoingStats
-
-  def save(self, path):
-    path=path+'/'+self.protocol
-    print('Saving to '+path)
-    data=self.serialize()
-    s=json.dumps(data)
-    f=open(path, 'w')
-    f.write(s)
-    f.close()
-
-  def serialize(self):
-    return {
-      'duration': self.duration,
-      'incomingStats': self.incomingStats.serialize(),
-      'outgoingStats': self.outgoingStats.serialize()
-    }
-
 class Stats():
   def __init__(self, parent, lengths, content, entropy, flow):
     self.parent=parent
-    self.lengths=lengths
-    self.content=content
-    self.entropy=entropy
-    self.flow=flow
-
-  def serialize(self):
-    return {
-      'lengths': self.lengths,
-      'content': self.content,
-      'entropy': self.entropy,
-      'flow': self.flow
-    }
-
-class DirectionalSummaryStats():
-  def __init__(self, lengths, content, entropy, flow):
     self.lengths=lengths
     self.content=content
     self.entropy=entropy
@@ -176,11 +103,11 @@ def getPorts(packet):
     if 'UDP' in packet:
       dport=packet['UDP'].fields['dport']
       sport=packet['UDP'].fields['sport']
-      return (dport, sport)
+      return (sport, dport)
     elif 'TCP' in packet:
       dport=packet['TCP'].fields['dport']
       sport=packet['TCP'].fields['sport']
-      return (dport, sport)
+      return (sport, dport)
   return None
 
 def getSortedPorts(packet):
@@ -366,6 +293,22 @@ class CaptureStats:
       conn=Connection(parent=self.pcap, pcap=self.pcap, portsId=key, duration=float(info[0].duration), incomingStats=istats, outgoingStats=ostats)
       conns.append(conn)
 
+      pstats.duration.append(info[0].duration)
+
+      pstats.isizes=pstats.isizes+info[0].sizes
+      pstats.icontent=pstats.icontent+info[0].content
+      pstats.ientropy.append(info[0].entropy)
+      pstats.iflow=pstats.iflow+list(info[0].flow)
+
+      pstats.osizes=pstats.osizes+info[1].sizes
+      pstats.ocontent=pstats.ocontent+info[1].content
+      pstats.oentropy.append(info[1].entropy)
+      pstats.oflow=pstats.oflow+list(info[1].flow)
+
+#    pistats=DirectionalSummaryStats(parent=pcap, lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
+#    postats=DirectionalSummaryStats(parent=pcap, lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
+#    pcapStats=PcapStats(parent=pcap, pcap=pcap, duration=pstats.duration, incomingStats=pistats, outgoingStats=postats)
+
     return conns
 
 def makeConns(dataset, protocol, pcap, port):
@@ -375,86 +318,17 @@ def makeConns(dataset, protocol, pcap, port):
   print("Found %d conns" % (len(conns)))
   for conn in conns:
     conn.save('conns/'+dataset+'/'+protocol+'/'+pcap)
-  return conns
 
-def merge(a, b):
-  c=[0]*len(a)
-  for x in range(len(a)):
-    c[x]=a[x]+b[x]
-  return c
-
-def makeDatasetProtocol(dataset, protocol, conns):
-  print('Generating dataset protocol rollup '+dataset+' '+protocol)
-
-  pstats=PcapStatInfo()
-  for conn in conns:
-    pstats.duration.append(conn.duration)
-
-    pstats.isizes=merge(pstats.isizes, conn.incomingStats.lengths)
-    pstats.icontent=merge(pstats.icontent, conn.incomingStats.content)
-    pstats.ientropy.append(conn.incomingStats.entropy)
-    pstats.iflow=pstats.iflow+list(conn.incomingStats.flow)
-
-    pstats.osizes=merge(pstats.osizes, conn.outgoingStats.lengths)
-    pstats.ocontent=merge(pstats.ocontent, conn.outgoingStats.content)
-    pstats.oentropy.append(conn.outgoingStats.entropy)
-    pstats.oflow=pstats.oflow+list(conn.outgoingStats.flow)
-
-  pistats=DirectionalSummaryStats(lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
-  postats=DirectionalSummaryStats(lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
-  dpstats=DatasetProtocolStats(dataset=dataset, protocol=protocol, duration=pstats.duration, incomingStats=pistats, outgoingStats=postats)
-  dpstats.save('datasets')
-  return dpstats
-
-def makeProtocol(protocol, conns):
-  print('Generating protocol rollup '+protocol)
-
-  pstats=PcapStatInfo()
-  for conn in conns:
-    pstats.duration=pstats.duration+conn.duration
-    pstats.isizes=merge(pstats.isizes, conn.incomingStats.lengths)
-    pstats.icontent=merge(pstats.icontent, conn.incomingStats.content)
-    pstats.ientropy=pstats.ientropy+conn.incomingStats.entropy
-    pstats.iflow=pstats.iflow+list(conn.incomingStats.flow)
-
-    pstats.osizes=merge(pstats.osizes, conn.outgoingStats.lengths)
-    pstats.ocontent=merge(pstats.ocontent, conn.outgoingStats.content)
-    pstats.oentropy=pstats.oentropy+conn.outgoingStats.entropy
-    pstats.oflow=pstats.oflow+list(conn.outgoingStats.flow)
-
-  pistats=DirectionalSummaryStats(lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
-  postats=DirectionalSummaryStats(lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
-  dpstats=ProtocolStats(protocol=protocol, duration=pstats.duration, incomingStats=pistats, outgoingStats=postats)
-  dpstats.save('protocols')
-
-datasets=os.listdir('pcaps')
+dataset=sys.argv[1]
+protocol=sys.argv[2]
 if not os.path.exists('conns'):
   os.mkdir('conns')
-if not os.path.exists('datasets'):
-  os.mkdir('datasets')
-if not os.path.exists('protocols'):
-  os.mkdir('protocols')
-protocolDataMap={}
-for dataset in datasets:
-  if not os.path.exists('conns/'+dataset):
-    os.mkdir('conns/'+dataset)
-  if not os.path.exists('datasets/'+dataset):
-    os.mkdir('datasets/'+dataset)
-  protocols=os.listdir('pcaps/'+dataset)
-  for protocol in protocols:
-    if not protocol in protocolDataMap:
-      protocolDataMap[protocol]=[]
-    protocolData=protocolDataMap[protocol]
-
-    if not os.path.exists('conns/'+dataset+'/'+protocol):
-      os.mkdir('conns/'+dataset+'/'+protocol)
-    pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
-    conns=[]
-    for pcap in pcaps:
-      if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
-        os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)
-      conns=conns+makeConns(dataset, protocol, pcap, portTable[protocol])
-    protocolData.append(makeDatasetProtocol(dataset, protocol, conns))
-    protocolDataMap[protocol]=protocolData
-  for protocol in protocolDataMap:
-    makeProtocol(protocol, protocolDataMap[protocol])
+if not os.path.exists('conns/'+dataset):
+  os.mkdir('conns/'+dataset)
+if not os.path.exists('conns/'+dataset+'/'+protocol):
+  os.mkdir('conns/'+dataset+'/'+protocol)
+pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
+for pcap in pcaps:
+  if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
+    os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)
+  makeConns(dataset, protocol, pcap, portTable[protocol])
