@@ -1,7 +1,8 @@
 import os
 import json
+import glob
 
-import Image
+from PIL import Image
 import colorsys
 
 def splitData(data):
@@ -27,16 +28,25 @@ def graph(data, direction, protocol):
   for y in range(ymax):    # for every pixel:
     for x in range(xmax):
       z=data[y][x]
-      if z==1:
+      if z==1: # Certain
         pixels[y,x] = (255, 255, 255)
-      elif z==0:
-        pixels[y,x] = 0
-      else:
-        r, g, b = colorsys.hsv_to_rgb(z*(2.0/3.0), 1.0, 1.0)
-        pixels[y,x] = (int(r*255), int(g*255), int(b*255))
+      elif z==0: # Impossible
+        pixels[y,x] = (0, 0, 0)
+      elif z<0.00195: # Unlikely
+        pixels[y,x] = (150, 0, 250)
+      elif z<0.0078: # Approximately uniform
+        pixels[y,x] = (0, 0, 255)
+      elif z<0.007: # More likely than uniform
+        pixels[y,x] = (0, 255, 0)
+      elif z<0.5: # Less likeley than not
+        pixels[y,x] = (255, 255, 0)
+      elif z<0.9: # More likely than not
+        pixels[y,x] = (255, 69, 0)
+      else: # Extremely likely
+        pixels[y,x] = (255, 0, 0)
 
 #  img.show()
-  img.save('seq-graphs/'+protocol+'-'+direction+'.png')
+  img.save('seq-graphs/'+protocol+'-'+direction+'.bmp')
 
 if not os.path.exists('seq-graphs'):
   os.mkdir('seq-graphs')
