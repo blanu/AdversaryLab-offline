@@ -38,8 +38,7 @@ def summarize(data):
   xmax=256
   ymax=1441
   results={}
-#  for side in ['incoming', 'outgoing']:
-  for side in ['incoming']:
+  for side in ['incoming', 'outgoing']:
     summary=[]
     for offset in range(ymax):
       summary.append([0.0]*xmax)
@@ -70,8 +69,7 @@ def saveSeq(data, path):
   f.write(json.dumps(summary))
   f.close()
 
-#  for side in ['incoming', 'outgoing']:
-  for side in ['incoming']:
+  for side in ['incoming', 'outgoing']:
     f=open(path+'-'+side+'.csv', 'w')
     for y in range(len(summary[side])):
       f.write(' '.join(map(str, summary[side][y]))+"\n")
@@ -83,7 +81,7 @@ def saveSeqs():
       os.mkdir('seqs/datasets/'+dataset)
     for protocol in datasets[dataset]:
       data=datasets[dataset][protocol]
-#      saveSeq(data, 'seqs/datasets/'+dataset+'/'+protocol)
+      saveSeq(data, 'seqs/datasets/'+dataset+'/'+protocol)
 
   for protocol in protocols:
     data=protocols[protocol]
@@ -95,10 +93,8 @@ if not os.path.exists('seqs/datasets'):
   os.mkdir('seqs/datasets')
 if not os.path.exists('seqs/protocols'):
   os.mkdir('seqs/protocols')
-#for dataset in os.listdir('first'):
-for dataset in ['Vienna']:
-#  for protocol in os.listdir('first/'+dataset):
-  for protocol in ['HTTPRSS']:
+for dataset in os.listdir('first'):
+  for protocol in os.listdir('first/'+dataset):
     print(protocol)
     for pcap in os.listdir('first/'+dataset+'/'+protocol):
       print(pcap)
