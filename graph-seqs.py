@@ -28,25 +28,90 @@ def graph(data, direction, protocol):
   for y in range(ymax):    # for every pixel:
     for x in range(xmax):
       z=data[y][x]
-      if z==1: # Certain
-        pixels[y,x] = (255, 255, 255)
-      elif z==0: # Impossible
-        pixels[y,x] = (0, 0, 0)
-      elif z<0.00195: # Unlikely
-        pixels[y,x] = (150, 0, 250)
-      elif z<0.0078: # Approximately uniform
-        pixels[y,x] = (0, 0, 255)
-      elif z<0.007: # More likely than uniform
-        pixels[y,x] = (0, 255, 0)
-      elif z<0.5: # Less likeley than not
-        pixels[y,x] = (255, 255, 0)
-      elif z<0.9: # More likely than not
-        pixels[y,x] = (255, 69, 0)
-      else: # Extremely likely
-        pixels[y,x] = (255, 0, 0)
+      pixels[y,x] = convert5(z)
 
-#  img.show()
+  img.show()
   img.save('seq-graphs/'+protocol+'-'+direction+'.bmp')
+
+def convert(z):
+  if z==1: # Certain - White
+    return (255, 255, 255)
+  elif z==0: # Impossible - Black
+    return (0, 0, 0)
+  elif z<=1.0/512.0: # Unlikely - Purple
+    return (150, 0, 250)
+  elif z<=1.0/127.0: # Approximately uniform - Blue
+    return (0, 0, 255)
+  elif z<=0.5: # More likely than uniform - Green
+    return (0, 255, 0)
+  else: # Extremely likely - Red
+    return (255, 0, 0)
+
+def convert2(z):
+  zz=rescale(z)
+  if zz==0:
+    return (0, 0, 0)
+  elif zz==1:
+    return (255, 255, 255)
+  else:
+    r, g, b = colorsys.hsv_to_rgb((1-zz)*(2.0/3.0), 0.5, 1)
+    return (int(r*255), int(g*255), int(b*255))
+
+def convert3(z):
+  zz=rescale2(z)
+  if zz==0:
+    return (0, 0, 0)
+  elif zz==1:
+    return (255, 255, 255)
+  else:
+    r, g, b = colorsys.hsv_to_rgb((1-zz)*(2.0/3.0), 0.5, 1)
+    return (int(r*255), int(g*255), int(b*255))
+
+def rescale(z):
+  bottom=1.0/256.0
+  top=1-bottom
+  if z==0:
+    return 0
+  elif z==1:
+    return 1
+  elif z==bottom:
+    return 0.5
+  elif z>bottom:
+    return (((z-bottom)/top)*0.5)+0.5
+  else:
+    return (z/bottom)*0.5
+
+def rescale2(z):
+  if z==0:
+    return 0
+  elif z==1:
+    return 1
+  else:
+    return z ** (1.0/8.0)
+
+def convert4(z):
+  zz=z
+  if zz==0:
+    return (0, 0, 0)
+  elif zz==1:
+    return (255, 255, 255)
+  else:
+    r, g, b = colorsys.hsv_to_rgb((1-zz)*(2.0/3.0), 0.5, 1)
+    return (int(r*255), int(g*255), int(b*255))
+
+def convert5(z):
+  if z==1: # Certain - White
+    return (255, 255, 255)
+  elif z==0: # Impossible - Black
+    return (0, 0, 0)
+  elif z<=0.1/256.0: # Unlikely - Purple
+    return (150, 0, 250)
+  elif z<=10.0/256.0: # Approximately uniform - Blue
+    return (0, 0, 255)
+  elif z<=0.5: # More likely than uniform - Green
+    return (0, 255, 128)
+  else: # Extremely likely - Red
+    return (255, 0, 0)
 
 if not os.path.exists('seq-graphs'):
   os.mkdir('seq-graphs')

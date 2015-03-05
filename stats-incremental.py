@@ -429,7 +429,7 @@ def makeProtocol(protocol, conns):
   dpstats.save('protocols')
 
 dataset=sys.argv[1]
-protocl=sys.argv[2]
+protocol=sys.argv[2]
 if not os.path.exists('conns'):
   os.mkdir('conns')
 if not os.path.exists('datasets'):
