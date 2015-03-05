@@ -1,3 +1,4 @@
+import sys
 import os
 import shutil
 
@@ -10,8 +11,22 @@ from scapy.all import sniff, IPv6, IP, UDP, TCP, rdpcap, wrpcap
 portTable={
   'HTTP': 80,
   'HTTPS': 443,
+  'HTTPRSS': 80,
+  'WebRTC': 57162,
   'uProxy': 56963
 }
+
+class PcapStatInfo:
+  def __init__(self):
+    self.duration=[]
+    self.isizes=[0]*1500
+    self.icontent=[0]*256
+    self.ientropy=[]
+    self.iflow=[]
+    self.osizes=[0]*1500
+    self.ocontent=[0]*256
+    self.oentropy=[]
+    self.oflow=[]
 
 class Connection():
   def __init__(self, parent, pcap, portsId, duration, incomingStats, outgoingStats):
@@ -38,9 +53,71 @@ class Connection():
       'outgoingStats': self.outgoingStats.serialize()
     }
 
+class DatasetProtocolStats():
+  def __init__(self, dataset, protocol, duration, incomingStats, outgoingStats):
+    self.dataset=dataset
+    self.protocol=protocol
+    self.duration=duration
+    self.incomingStats=incomingStats
+    self.outgoingStats=outgoingStats
+
+  def save(self, path):
+    path=path+'/'+self.dataset+'/'+self.protocol
+    print('Saving to '+path)
+    data=self.serialize()
+    s=json.dumps(data)
+    f=open(path, 'w')
+    f.write(s)
+    f.close()
+
+  def serialize(self):
+    return {
+      'duration': self.duration,
+      'incomingStats': self.incomingStats.serialize(),
+      'outgoingStats': self.outgoingStats.serialize()
+    }
+
+class ProtocolStats():
+  def __init__(self, protocol, duration, incomingStats, outgoingStats):
+    self.protocol=protocol
+    self.duration=duration
+    self.incomingStats=incomingStats
+    self.outgoingStats=outgoingStats
+
+  def save(self, path):
+    path=path+'/'+self.protocol
+    print('Saving to '+path)
+    data=self.serialize()
+    s=json.dumps(data)
+    f=open(path, 'w')
+    f.write(s)
+    f.close()
+
+  def serialize(self):
+    return {
+      'duration': self.duration,
+      'incomingStats': self.incomingStats.serialize(),
+      'outgoingStats': self.outgoingStats.serialize()
+    }
+
 class Stats():
   def __init__(self, parent, lengths, content, entropy, flow):
     self.parent=parent
+    self.lengths=lengths
+    self.content=content
+    self.entropy=entropy
+    self.flow=flow
+
+  def serialize(self):
+    return {
+      'lengths': self.lengths,
+      'content': self.content,
+      'entropy': self.entropy,
+      'flow': self.flow
+    }
+
+class DirectionalSummaryStats():
+  def __init__(self, lengths, content, entropy, flow):
     self.lengths=lengths
     self.content=content
     self.entropy=entropy
@@ -103,11 +180,11 @@ def getPorts(packet):
     if 'UDP' in packet:
       dport=packet['UDP'].fields['dport']
       sport=packet['UDP'].fields['sport']
-      return (sport, dport)
+      return (dport, sport)
     elif 'TCP' in packet:
       dport=packet['TCP'].fields['dport']
       sport=packet['TCP'].fields['sport']
-      return (sport, dport)
+      return (dport, sport)
   return None
 
 def getSortedPorts(packet):
@@ -201,30 +278,43 @@ def getFirstPacketContents(packet):
     l[x]=ord(bs[x])
   return l
 
+class FirstPair:
+  def __init__(self):
+    self.firstIn=None
+    self.firstOut=None
+
+  def setIn(self, p):
+    if self.firstIn==None:
+      if p.load!=None:
+        self.firstIn=p
+
+  def setOut(self, p):
+    if self.firstOut==None:
+      if p.load!=None:
+        self.firstOut=p
+
 class CaptureStats:
   def __init__(self, pcap, port):
     self.pcap=pcap
     self.port=port
     self.data={}
     self.streams={}
+    self.firsts={}
 
   def processPcap(self, streamfile):
     self.splitStreams(streamfile)
     print("Processing %d streams" % (len(self.streams.keys())))
-    for key in self.streams:
-      packets=self.streams[key]
-      infos=self.data[key]
-      infos[0].flow=calculateFlow(packets[0])
-      infos[1].flow=calculateFlow(packets[1])
+    for key in self.data:
+      pair=self.data[key]
 
-      for index in [0,1]:
-        side=packets[index]
-        for packet in side:
-          self.processPacket(key, index, packet)
+      for index, packet in [(0, pair.firstIn), (1, pair.firstOut)]:
+       if packet!=None:
+         self.processPacket(key, index, packet)
 
     return self.combineStreams()
 
   def splitStreams(self, tracefile):
+    print('Split streams')
     try:
       packets=rdpcap(tracefile)
     except:
@@ -248,89 +338,59 @@ class CaptureStats:
             self.streams[skey]=[[], []]
           self.streams[skey][portIndex].append(packet)
           if not skey in self.data:
-            self.data[skey]=[StreamStatInfo(), StreamStatInfo()]
-
-  def getFirstPacketContents(self, packet):
-    bs=bytes(packet.load)
-    l=[0]*len(bs)
-    for x in range(len(bs)):
-      l[x]=ord(bs[x])
-    return l
+            self.data[skey]=FirstPair()
+          if portIndex==0: # Incoming
+            self.data[skey].setIn(packet)
+          else:            # Outgoing
+            self.data[skey].setOut(packet)
+          if not skey in self.firsts:
+            self.firsts[skey]=[None, None]
 
   def processPacket(self, stream, portIndex, packet):
-    info=self.data[stream][portIndex]
-    sz=info.sizes
-
     contents=bytes(packet.load)
-    length=len(contents)
-
-    if length>0 and length<1500:
-      sz[length]=sz[length]+1
-    else:
-      logging.error('Bad length: '+str(length))
-
-    for c in contents:
-      x=ord(c)
-      info.content[x]=info.content[x]+1
-
-    info.timestamps.append(float(packet.time))
-
-    info.sizes=sz
-    self.data[stream][portIndex]=info
+    self.firsts[stream][portIndex]=contents
 
   def combineStreams(self):
-    conns=[]
-    pstats=PcapStatInfo()
-    print("Combining %d streams" % (len(self.data.keys())))
-    for key in self.data:
-      info=self.data[key]
-      info[0].entropy=calculateEntropy(info[0].content)
-      info[1].entropy=calculateEntropy(info[1].content)
-      info[0].duration=calculateDuration(info[0].timestamps+info[1].timestamps)
-      info[1].duration=info[0].duration
-      istats=Stats(parent=self.pcap, lengths=info[0].sizes, content=info[0].content, entropy=info[0].entropy, flow=list(info[0].flow))
-      ostats=Stats(parent=self.pcap, lengths=info[1].sizes, content=info[1].content, entropy=info[1].entropy, flow=list(info[1].flow))
-      conn=Connection(parent=self.pcap, pcap=self.pcap, portsId=key, duration=float(info[0].duration), incomingStats=istats, outgoingStats=ostats)
-      conns.append(conn)
+    print('Combine streams')
+    result={}
+    for key in self.firsts:
+      value=self.firsts[key]
+      if value[0]!=None and value[1]!=None:
+        result[key]=value
+    return result
 
-      pstats.duration.append(info[0].duration)
+def saveFirst(data, filename):
+  f=open(filename, 'w')
+  f.write(data)
+  f.close()
 
-      pstats.isizes=pstats.isizes+info[0].sizes
-      pstats.icontent=pstats.icontent+info[0].content
-      pstats.ientropy.append(info[0].entropy)
-      pstats.iflow=pstats.iflow+list(info[0].flow)
-
-      pstats.osizes=pstats.osizes+info[1].sizes
-      pstats.ocontent=pstats.ocontent+info[1].content
-      pstats.oentropy.append(info[1].entropy)
-      pstats.oflow=pstats.oflow+list(info[1].flow)
-
-#    pistats=DirectionalSummaryStats(parent=pcap, lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
-#    postats=DirectionalSummaryStats(parent=pcap, lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
-#    pcapStats=PcapStats(parent=pcap, pcap=pcap, duration=pstats.duration, incomingStats=pistats, outgoingStats=postats)
-
-    return conns
-
-def makeConns(dataset, protocol, pcap, port):
+def makeFirst(dataset, protocol, pcap, port):
   print('Processing '+dataset+' '+protocol+' '+pcap)
   stats=CaptureStats(pcap, port)
   conns=stats.processPcap('pcaps/'+dataset+'/'+protocol+'/'+pcap)
   print("Found %d conns" % (len(conns)))
-  for conn in conns:
-    conn.save('conns/'+dataset+'/'+protocol+'/'+pcap)
+  for key in conns:
+    conn=conns[key]
+    if not os.path.exists('first/'+dataset+'/'+protocol+'/'+pcap+'/'+key):
+      os.mkdir('first/'+dataset+'/'+protocol+'/'+pcap+'/'+key)
+    saveFirst(conn[0], 'first/'+dataset+'/'+protocol+'/'+pcap+'/'+key+'/incoming')
+    saveFirst(conn[1], 'first/'+dataset+'/'+protocol+'/'+pcap+'/'+key+'/outgoing')
+  return conns
 
-datasets=os.listdir('pcaps')
-if not os.path.exists('conns'):
-  os.mkdir('conns')
-for dataset in datasets:
-  if not os.path.exists('conns/'+dataset):
-    os.mkdir('conns/'+dataset)
-  protocols=os.listdir('pcaps/'+dataset)
-  for protocol in protocols:
-    if not os.path.exists('conns/'+dataset+'/'+protocol):
-      os.mkdir('conns/'+dataset+'/'+protocol)
-    pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
-    for pcap in pcaps:
-      if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
-        os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)
-      makeConns(dataset, protocol, pcap, portTable[protocol])
+dataset=sys.argv[1]
+protocol=sys.argv[2]
+pcap=sys.argv[3]
+port=int(sys.argv[4])
+if not os.path.exists('first'):
+  os.mkdir('first')
+protocolDataMap={}
+if not os.path.exists('first/'+dataset):
+  os.mkdir('first/'+dataset)
+if not os.path.exists('datasets/'+dataset):
+  os.mkdir('datasets/'+dataset)
+if not os.path.exists('first/'+dataset+'/'+protocol):
+  os.mkdir('first/'+dataset+'/'+protocol)
+conns=[]
+if not os.path.exists('first/'+dataset+'/'+protocol+'/'+pcap):
+  os.mkdir('first/'+dataset+'/'+protocol+'/'+pcap)
+makeFirst(dataset, protocol, pcap, port)

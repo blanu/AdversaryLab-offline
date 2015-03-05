@@ -10,7 +10,9 @@ from scapy.all import sniff, IPv6, IP, UDP, TCP, rdpcap, wrpcap
 
 portTable={
   'HTTP': 80,
-  'HTTPS': 443
+  'HTTPS': 443,
+  'WebRTC': 57162,
+  'uProxy': 56963
 }
 
 class Connection():
