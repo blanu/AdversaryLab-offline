@@ -51,7 +51,7 @@ def graph(data, direction, protocol):
 if not os.path.exists('seq-graphs'):
   os.mkdir('seq-graphs')
 for protocol in os.listdir('seqs/protocols'):
-  print('Loading...')
+  print('Loading %s...' % (protocol))
   f=open('seqs/protocols/'+protocol)
   data=f.read()
   f.close()

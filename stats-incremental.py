@@ -10,7 +10,10 @@ from scapy.all import sniff, IPv6, IP, UDP, TCP, rdpcap, wrpcap
 
 portTable={
   'HTTP': 80,
-  'HTTPS': 443
+  'HTTPS': 443,
+  'HTTPRSS': 80,
+  'WebRTC': 57162,
+  'uProxy': 56963
 }
 
 class PcapStatInfo:
@@ -429,7 +432,7 @@ def makeProtocol(protocol, conns):
   dpstats.save('protocols')
 
 dataset=sys.argv[1]
-protocl=sys.argv[2]
+protocol=sys.argv[2]
 if not os.path.exists('conns'):
   os.mkdir('conns')
 if not os.path.exists('datasets'):
