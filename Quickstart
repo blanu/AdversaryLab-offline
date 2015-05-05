@@ -1,50 +1,88 @@
 AdversaryLab-offline is a set of tools for analyzing network capture (.pcap) files and creating optimized simulated adversaries.
 It is a fork of AdversaryLab, which is an online service that provides similar functionality.
 
-Currently the tools are not very well organized as I am creating more new tools all the time. When things settle down hopefully there will
-be time to reorganize everything to be more logical and nicely refactored. In the meantime, here is an overview of the main tools:
+Step 1 - Generating Pcaps
 
-Statistical Summarization
+You can use a tool such as tcpdump or Wireshark to capture network traffic data and save it as a pcap file. When using Wireshark, make sure to export
+as tcpdump-compatible pcap files and not "pcapng".
 
-stats.py - Processes network capture (.pcap) files and generates statistical summaries in JSON format.
-  * Pcaps are expected to be stored in a directory structure like this: pcaps/[dataset]/[protocol]/[filename].pcap
-  * Statistical summaries are written to:
-    - conns/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]
-    - datasets/[dataset]/[protocol]
-    - protocols/[protocol]
-graph.py - Generates graphs of statistical properties of each protocol in each dataset
-summarize.py - Takes protocol-level statistical summaries and outputs files used to create graphs of the statistical properties of those protocols
-  * Protocols statistics are expected to be stored in: protocols/[protocol]
-  * Graphing tools are written to: summaries/[protocol]
+For the pcap files to be able to be processed by Adversary Lab, you should only have one time of traffic in each pcap file. For instance, if you
+are testing Tor vs HTTPS then you should have all of your Tor data in one pcap file and all of your HTTPS data in another one. Don't worry about
+extraneous traffic that gets captured at the same time. Adversary Lab will filter this out.
 
-Model Generation and Evaluation
+You will want to generate as many TCP connections using the protocol you want to test as possible as each connection is treated as a distinct
+sample. For instance, Tor uses long-lived connections which persist if the same Tor session is used. In order to get a good amount of test data,
+Tor will therefore need to be stopped and started multiple times in order to create several Tor sessions. Otherwise all the Tor traffic will
+just be counted as one data point, which is not as useful for training.
 
-compare-duration.py - Compares the goodness of fit of different duration distributions
-compare-length.py - Compares the goodness of fit of different length distributions
-train.py - Trains a machine learning model using the chosen optimal distribution for each feature
-train-compare-duration.py - Trains multiple machine learning models for different duration distributions
-train-compare-length.py - Trains multiple machine learning models for different length distributions
-test.py - Tests machine learning models against the data used to build them to determine the goodness-of-fit of the model
-score.py - Scores the results of the model validation test
-encode.py - Generates a Huffman encoder table from a content model
+You will also need your protocols to operate on fixed, distinct ports. So in the case of Tor vs HTTPS, your Tor connetions should always use
+the same port. Your HTTPS connections should all use a different port. This is because the training process does not yet know how to distinguish
+traffic of different protocols. The port is used to distinguish traffic of different protocols.
 
-Byte Sequence Extraction
+Pcap files are organized in a directory structure based on dataset and protocol. The dataset is just for convenience in case you have different
+datasets that you want to analyze. For instance, if you had a pcap of HTTPS data gathered from your office network called "test-data.pcap",
+you could place it in "pcaps/Office/HTTPS/test-data.pcap".
 
-first.py - Extracts the first packet for each direction (incoming and outgoing) from each connection in each .pcap file
-  * Pcaps are expected to be stored in a directory structure like this: pcaps/[dataset]/[protocol]/[filename].pcap
-  * First packets are written to:
-    - first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/incoming
-    - first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/outgoing
-seq.py - Creates a numerical heat map of the distribution of bytes across different offsets in the first packets of connections
-  * First packets are expected to be stored in a directory structure like this: first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/[incoming | outgoing]
-  * Heatmaps are written to: seqs/protocols/[protocol]
-graph-seqs.py - Creates a graphical heatmap as an image file from a numerical heatmap JSON file
-  * Numerical heatmaps are expected to be found in: seqs/protocols/[protocol]
-  * Graphical heatmaps are written to:
-    - seq-graphs/[protocol]-incoming.bmp
-    - seq-graphs/[protocol]-outgoing.bmp
-extract.py - Extracts high probability byte sequences from first packets
-  * First packets are expected to be stored in a directory structure like this: first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/[incoming | outgoing]
-  * Extracted byte sequences are written to:
-    - seqs/protocols/[protocol]-extracted-incoming.txt
-    - seqs/protocols/[protocol]-extracted-outgoing.txt
+Step 2 - Processing Pcaps for Statistical Data
+
+First edit stats-incremental.py and add your protocols ports to the portTable dictionary. For instance, if you are analyzing HTTPS you might add
+'HTTPS': 443 to the table.
+
+Run the following: python stats-incremental.py [dataset] [protocol]
+For instance, "python stats-incremental.py Office HTTPS"
+
+This will analyze just the data from the given dataset and for the given protocol. The result will be statistical summaries of the pcaps. A
+statistical summary of each TCP connection will be written to the conns/ directory. A rolled up summary of all of the connections in the dataset
+will be written to the datasets/ directory. A rolled up summary of all connections across all datasets for the protocol will be written to the
+protocols/ directory.
+
+Step 3 - Processing Pcaps for Byte Sequence Data
+
+First edit first-incremental.py and add your protocols ports to the portTable dictionary. For instance, if you are analyzing HTTPS you might add
+'HTTPS': 443 to the table.
+
+Run the following: python first-incremental.py [dataset] [protocol] [pcap] [port]
+For instance, "python first-incremental.py Office HTTPS test-data.pcap 443"
+
+Run the following: python seqs.py
+
+This creates a map of the byte sequence probabilities.
+
+Run: python extract.py
+
+This extracts the high probability byte sequences from the byte sequence map.
+
+Step 4 - Training an Adversary Model
+
+Make a directory for your adversary: mkdir adversaries/Tor-HTTPS
+Symlink the protocols for your model:
+  cd adversaries/Tor-HTTPS
+  ln -s ../../protocols/Tor positive
+  ln -s ../../protocols/HTTPS negative
+Create a features file: cp ../../features.all features
+
+Run: python train-incremental.py [adversary]
+For instance, "python train-incremental.py Tor-HTTPS"
+
+This will use machine learning to create a simulated adversary that can distinguish between the two protocols. The results will be written to
+adversaries/Tor-HTTPS/model.
+
+Step 5 - Merging Statistical and Byte Sequence Data
+
+Run: python mergeseqmodels.py [adversary]
+For instance, "python mergeseqmodels.py Tor-HTTPS"
+
+This will load the adversary model file, add in the byte sequence matching information, and write out a modified model file.
+
+Step 6 - Preliminary Testing
+
+The next step is to test the model and determine which features are good discriminators between the two protocols.
+
+Run: python test2-incremental.py [adversary]
+For instance, "python test2-incremental.py Tor-HTTPS"
+
+This will run the machine learning model against the training data to see how well it predicts the training data. Since this is the same data
+that was used to train the model, the accuracy of prediction should be very high. If the accuracy is not high, then this indicates that the
+feature being tested is not a good discriminator between the protocols.
+
+The output will be written to the tests/ directory.
