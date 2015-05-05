@@ -1,0 +1,50 @@
+AdversaryLab-offline is a set of tools for analyzing network capture (.pcap) files and creating optimized simulated adversaries.
+It is a fork of AdversaryLab, which is an online service that provides similar functionality.
+
+Currently the tools are not very well organized as I am creating more new tools all the time. When things settle down hopefully there will
+be time to reorganize everything to be more logical and nicely refactored. In the meantime, here is an overview of the main tools:
+
+Statistical Summarization
+
+stats.py - Processes network capture (.pcap) files and generates statistical summaries in JSON format.
+  * Pcaps are expected to be stored in a directory structure like this: pcaps/[dataset]/[protocol]/[filename].pcap
+  * Statistical summaries are written to:
+    - conns/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]
+    - datasets/[dataset]/[protocol]
+    - protocols/[protocol]
+graph.py - Generates graphs of statistical properties of each protocol in each dataset
+summarize.py - Takes protocol-level statistical summaries and outputs files used to create graphs of the statistical properties of those protocols
+  * Protocols statistics are expected to be stored in: protocols/[protocol]
+  * Graphing tools are written to: summaries/[protocol]
+
+Model Generation and Evaluation
+
+compare-duration.py - Compares the goodness of fit of different duration distributions
+compare-length.py - Compares the goodness of fit of different length distributions
+train.py - Trains a machine learning model using the chosen optimal distribution for each feature
+train-compare-duration.py - Trains multiple machine learning models for different duration distributions
+train-compare-length.py - Trains multiple machine learning models for different length distributions
+test.py - Tests machine learning models against the data used to build them to determine the goodness-of-fit of the model
+score.py - Scores the results of the model validation test
+encode.py - Generates a Huffman encoder table from a content model
+
+Byte Sequence Extraction
+
+first.py - Extracts the first packet for each direction (incoming and outgoing) from each connection in each .pcap file
+  * Pcaps are expected to be stored in a directory structure like this: pcaps/[dataset]/[protocol]/[filename].pcap
+  * First packets are written to:
+    - first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/incoming
+    - first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/outgoing
+seq.py - Creates a numerical heat map of the distribution of bytes across different offsets in the first packets of connections
+  * First packets are expected to be stored in a directory structure like this: first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/[incoming | outgoing]
+  * Heatmaps are written to: seqs/protocols/[protocol]
+graph-seqs.py - Creates a graphical heatmap as an image file from a numerical heatmap JSON file
+  * Numerical heatmaps are expected to be found in: seqs/protocols/[protocol]
+  * Graphical heatmaps are written to:
+    - seq-graphs/[protocol]-incoming.bmp
+    - seq-graphs/[protocol]-outgoing.bmp
+extract.py - Extracts high probability byte sequences from first packets
+  * First packets are expected to be stored in a directory structure like this: first/[dataset]/[protocol]/[filename].pcap/[destPort]:[srcPort]/[incoming | outgoing]
+  * Extracted byte sequences are written to:
+    - seqs/protocols/[protocol]-extracted-incoming.txt
+    - seqs/protocols/[protocol]-extracted-outgoing.txt

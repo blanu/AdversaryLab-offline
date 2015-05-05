@@ -4,3 +4,17 @@ conns
 adversaries
 encodings
 protocols
+*.pdf
+*.csv
+tests/
+seqs/
+rmse/
+graphs/
+first/
+scores/
+seq-graphs/
+summaries/
+datasets/
+protocols/
+compare/
+build/

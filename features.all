@@ -1,0 +1,15 @@
+sequence:
+ - incoming
+ - outgoing
+entropy:
+ - incoming
+ - outgoing
+flow:
+ - incoming
+ - outgoing
+content:
+ - incoming
+ - outgoing
+length:
+ - incoming
+ - outgoing
