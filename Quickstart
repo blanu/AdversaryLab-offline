@@ -4,7 +4,7 @@ It is a fork of AdversaryLab, which is an online service that provides similar f
 Step 1 - Generating Pcaps
 
 You can use a tool such as tcpdump or Wireshark to capture network traffic data and save it as a pcap file. When using Wireshark, make sure to export
-as tcpdump-compatible pcap files and not "pcapng".
+as tcpdump-compatible pcap files and not "pcapng". Pcap files made with tcpdump for OS X do not appear to be compatible.
 
 For the pcap files to be able to be processed by Adversary Lab, you should only have one time of traffic in each pcap file. For instance, if you
 are testing Tor vs HTTPS then you should have all of your Tor data in one pcap file and all of your HTTPS data in another one. Don't worry about
@@ -25,6 +25,8 @@ you could place it in "pcaps/Office/HTTPS/test-data.pcap".
 
 Step 2 - Processing Pcaps for Statistical Data
 
+Scapy is required. For OS X, you can follow the install guide here: http://juhalaaksonen.com/blog/2013/12/11/installing-scapy-for-mac-os-x/
+
 First edit stats-incremental.py and add your protocols ports to the portTable dictionary. For instance, if you are analyzing HTTPS you might add
 'HTTPS': 443 to the table.
 
@@ -44,11 +46,17 @@ First edit first-incremental.py and add your protocols ports to the portTable di
 Run the following: python first-incremental.py [dataset] [protocol] [pcap] [port]
 For instance, "python first-incremental.py Office HTTPS test-data.pcap 443"
 
-Run the following: python seqs.py
+Alternaively, you can process all pcaps of a given protocol in a given dataset at once:
+Run the following: python first-incremental.py [dataset] [protocol] all [port]
+For instance, "python first-incremental.py Office HTTPS all 443"
+
+Run the following: python seqs-incremental.py [dataset] [protocol]
+For instance, "python seqs-incremental.py Office HTTPS"
 
 This creates a map of the byte sequence probabilities.
 
-Run: python extract.py
+Run the following: python extract-incremental.py [dataset] [protocol]
+For instance, "python extract-incremental.py Office HTTPS"
 
 This extracts the high probability byte sequences from the byte sequence map.
 
@@ -60,6 +68,7 @@ Symlink the protocols for your model:
   ln -s ../../protocols/Tor positive
   ln -s ../../protocols/HTTPS negative
 Create a features file: cp ../../features.all features
+  cd ../..
 
 Run: python train-incremental.py [adversary]
 For instance, "python train-incremental.py Tor-HTTPS"
@@ -86,3 +95,11 @@ that was used to train the model, the accuracy of prediction should be very high
 feature being tested is not a good discriminator between the protocols.
 
 The output will be written to the tests/ directory.
+
+Run: python score2-incremental.py [adversary]
+For instance, "python score2-incremental.py Tor-HTTPS"
+
+This will take the results of the tests and generate scores. A score is a prediction of which protocol the machine learning model determines is
+a better fit for the test data.
+
+The output will be written to the scores/ directory.

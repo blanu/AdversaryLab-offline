@@ -13,7 +13,8 @@ portTable={
   'HTTPS': 443,
   'HTTPRSS': 80,
   'WebRTC': 57162,
-  'uProxy': 56963
+  'uProxy': 56963,
+  'DustRTSP': 36747
 }
 
 class PcapStatInfo:
@@ -391,6 +392,13 @@ if not os.path.exists('datasets/'+dataset):
 if not os.path.exists('first/'+dataset+'/'+protocol):
   os.mkdir('first/'+dataset+'/'+protocol)
 conns=[]
-if not os.path.exists('first/'+dataset+'/'+protocol+'/'+pcap):
-  os.mkdir('first/'+dataset+'/'+protocol+'/'+pcap)
-makeFirst(dataset, protocol, pcap, port)
+if pcap!='all':
+  pcaps=[pcap]
+else:
+  pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
+  print(pcaps)
+  for pcap in pcaps:
+    print('Processing pcap '+pcap)
+    if not os.path.exists('first/'+dataset+'/'+protocol+'/'+pcap):
+      os.mkdir('first/'+dataset+'/'+protocol+'/'+pcap)
+    makeFirst(dataset, protocol, pcap, port)

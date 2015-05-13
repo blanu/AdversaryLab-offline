@@ -34,7 +34,6 @@ def makeSequence(dataset, protocol, path):
   protocols[protocol]['outgoing'].append(fo)
 
 def summarize(data):
-  print('summarize')
   xmax=256
   ymax=1441
   results={}
@@ -58,21 +57,42 @@ def summarize(data):
     results[side]=normal
   return results
 
+def extract(data, summary, offset):
+  foundIndex=None
+  for index in range(256):
+    if summary[offset][index]>=0.5:
+      foundIndex=index
+  return foundIndex
+
+def prune(data, offset, value):
+  results=[]
+  for seq in data:
+    if offset<len(seq) and seq[offset]==value:
+      results.append(seq)
+  return results
+
 def saveSeq(data, path):
   f=open(path+'-raw', 'w')
   f.write(json.dumps(data))
   f.close()
 
-  summary=summarize(data)
+  extraction={'incoming': [], 'outgoing': []}
+  for side in ['incoming', 'outgoing']:
+    for offset in range(1440):
+      summary=summarize(data)
+      value=extract(data[side], summary[side], offset)
+      if value==None:
+        break
+      extraction[side].append(value)
+      data[side]=prune(data[side], offset, value)
 
-  f=open(path, 'w')
-  f.write(json.dumps(summary))
+  f=open(path+'-extracted', 'w')
+  f.write(json.dumps(extraction))
   f.close()
 
   for side in ['incoming', 'outgoing']:
-    f=open(path+'-'+side+'.csv', 'w')
-    for y in range(len(summary[side])):
-      f.write(' '.join(map(str, summary[side][y]))+"\n")
+    f=open(path+'-extracted-'+side+'.txt', 'w')
+    f.write(''.join(map(chr, extraction[side])))
     f.close()
 
 def saveSeqs():

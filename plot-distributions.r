@@ -41,7 +41,7 @@ plotFlow=function(adversary, pd, nd, title, direction)
   pdf(paste('/Users/brandon/AdversaryLab-offline/dist-graphs/', adversary, '-flow', '-', direction, '.pdf', sep=""))
   px <- rpois(1000, pd)
   nx <- rpois(1000, nd)
-  plot(sort(px), col="blue", main="Flow", ylab="Packets", xlab="Index")
+  plot(sort(px), col="blue", main="Flow", ylab="Packets", xlab="Index", ylim=c(0,50))
   points(sort(nx), col="red")
   dev.off()
 }
