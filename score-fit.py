@@ -16,8 +16,14 @@ def readCSV(filename):
       break
     items=line.split(' ')
     for x in range(len(names)):
-      result[names[x]].append(items[x])
+      result[names[x]].append(convert(items[x]))
   return result
+
+def convert(item):
+  if item=='NA':
+    return 'NA'
+  else:
+    return float(item)
 
 def predict(a, b):
   if a=='NA' or b=='NA':
@@ -44,15 +50,26 @@ def falseNegatives(actualPositives):
 def undecided(items):
   return map(lambda x: x==0, items)
 
-def summarize(httpPos, httpNeg, httpsPos, httpsNeg):
+def summarize(httpPos, httpNeg, httpsPos, httpsNeg, debug):
+  if debug:
+    print('summarize')
+    print(httpPos)
+    print(httpNeg)
+    print(httpsPos)
+    print(httpsNeg)
   predHttp=[predict(x,y) for x,y in zip(httpPos,httpNeg)]
   predHttps=[predict(x,y) for x,y in zip(httpsPos,httpsNeg)]
+
+  if debug:
+    print(predHttp)
+    print(predHttps)
+    print(correctness(predHttp, predHttps))
 
   return correctness(predHttp, predHttps)
 
 def correctness(predHttp, predHttps):
-  totalp=len(predHttp)
-  totaln=len(predHttps)
+  totalp=float(len(predHttp))
+  totaln=float(len(predHttps))
   total=totalp+totaln
 
   tp=truePositives(predHttp)
@@ -62,14 +79,14 @@ def correctness(predHttp, predHttps):
   tn=trueNegatives(predHttps)
   uan=undecided(predHttps)
 
-  return map(lambda x: x*100, [sum(tp)/totalp, sum(fn)/totalp, sum(uap)/totalp, sum(tn)/totaln, sum(fp)/totaln, sum(uan)/totaln])
+  return map(lambda x: int(x*100), [float(sum(tp))/totalp, float(sum(fn))/totalp, float(sum(uap))/totalp, float(sum(tn))/totaln, float(sum(fp))/totaln, float(sum(uan))/totaln])
 
 def printLegend():
   print(["Adversary", "Feature", "Direction", "True Pos", "False Neg", "Unknown", "True Neg", "False Pos", "Unknown"])
 
 def plotFeature(ad, direction, feature, label, pdata, ndata, pdata2, ndata2):
 #  pdf(paste('/Users/brandon/AdversaryLab-offline/scores/raw-', ad, '-', direction, '-', feature, '.pdf', sep=""))
-  summary=summarize(pdata, ndata, pdata2, ndata2)
+  summary=summarize(pdata, ndata, pdata2, ndata2, False)
   print(ad, feature, direction, summary, rate(summary))
 
 def rate(summary):
