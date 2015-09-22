@@ -18,3 +18,9 @@ datasets/
 protocols/
 compare/
 build/
+models/
+split-tests/
+testing-protocols/
+testing/
+training-protocols/
+training/

@@ -266,6 +266,7 @@ def saveFits(scores, test, features):
   for protocol in scores:
     path='scores/fit-'+test+'-'+protocol+'.csv'
     f=open(path, 'w')
+    print("%d features" % (len(features)))
     for side in ['positive', 'negative']:
       if 'duration' in features:
         f.write(side+"Duration ")
@@ -289,8 +290,11 @@ def saveFits(scores, test, features):
           for direction in features[feature]:
             try:
               data.append(item[side][direction][feature])
-            except:
-              continue
+            except Exception as e:
+              print("Exception")
+              print(e)
+              data.append("NA")
+      print("%d items" % (len(data)))
       f.write(' '.join(map(str, data))+"\n")
     f.close()
 

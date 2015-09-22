@@ -14,7 +14,12 @@ portTable={
   'HTTPRSS': 80,
   'WebRTC': 57162,
   'uProxy': 56963,
-  'DustRTSP': 36747
+  'DustRTSP': 36747,
+  'DustHTTP': 36747,
+  'DustHTTPS': 36747,
+  'Lantern': 443,
+  'Lantern2': 443,
+  'Dust2RTSP': 35546
 }
 
 class PcapStatInfo:

@@ -58,11 +58,13 @@ def plotFeature(dataset, protocol, name, data):
   plotCDF(data, 'graphs/'+dataset+'/'+protocol+'/'+name+'_cdf')
 
 dataset=sys.argv[1]
+protocol=sys.argv[2]
 if not os.path.exists('graphs'):
   os.mkdir('graphs')
 if not os.path.exists('graphs/'+dataset):
   os.mkdir('graphs/'+dataset)
-protocols=os.listdir('datasets/'+dataset)
+#protocols=os.listdir('datasets/'+dataset)
+protocols=[protocol]
 for protocol in protocols:
   if not os.path.exists('graphs/'+dataset+'/'+protocol):
     os.mkdir('graphs/'+dataset+'/'+protocol)

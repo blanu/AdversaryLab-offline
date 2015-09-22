@@ -16,7 +16,14 @@ def readCSV(filename):
       break
     items=line.split(' ')
     for x in range(len(names)):
-      result[names[x]].append(convert(items[x]))
+      try:
+        result[names[x]].append(convert(items[x]))
+      except Exception as e:
+        print(items)
+        print(len(items))
+        print(len(names))
+        print(x)
+        raise e
   return result
 
 def convert(item):
@@ -87,19 +94,30 @@ def printLegend():
 def plotFeature(ad, direction, feature, label, pdata, ndata, pdata2, ndata2):
 #  pdf(paste('/Users/brandon/AdversaryLab-offline/scores/raw-', ad, '-', direction, '-', feature, '.pdf', sep=""))
   summary=summarize(pdata, ndata, pdata2, ndata2, False)
-  print(ad, feature, direction, summary, rate(summary))
+  accuracy=accurate(summary)
+  print(ad, feature, direction, summary, accuracy, rate(accuracy, summary))
 
-def rate(summary):
-  if (summary[0]==0 and summary[1]==0 and summary[2]==0) or (summary[3]==0 and summary[4]==0 and summary[5]==0):
-    return 'Error'
-  else:
-    if summary[0]>summary[1] and summary[3]>summary[4]:
-      if summary[2]==0 and summary[5]==0:
-        return 'Excellent'
-      else:
-        return 'Good'
+def rate(accuracy, summary):
+  if summary[0] > summary[1] and summary[3] > summary[4]:
+    if accuracy > 0.9 and summary[2]<50 and summary[5]<50:
+      return 'Excellent'
+    elif accuracy > 0.5:
+      return 'Good'
     else:
       return 'Bad'
+  else:
+    return 'Terrible'
+
+def accurate(summary):
+  if summary[1]==0:
+    p=100
+  else:
+    p=float(summary[0])/float(summary[1])
+  if summary[4]==0:
+    n=100
+  else:
+    n=float(summary[3])/float(summary[4])
+  return (p+n)/200.0
 
 """
 totalScore=function(table)

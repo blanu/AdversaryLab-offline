@@ -418,54 +418,45 @@ def makeDatasetProtocol(dataset, protocol, conns):
   dpstats.save('datasets')
   return dpstats
 
-def makeProtocol(protocol, conns):
+def makeProtocol(dataset, protocol, conns):
   print('Generating protocol rollup '+protocol)
 
   pstats=PcapStatInfo()
   for conn in conns:
-    pstats.duration=pstats.duration+conn.duration
-    pstats.isizes=merge(pstats.isizes, conn.incomingStats.lengths)
-    pstats.icontent=merge(pstats.icontent, conn.incomingStats.content)
-    pstats.ientropy=pstats.ientropy+conn.incomingStats.entropy
-    pstats.iflow=pstats.iflow+list(conn.incomingStats.flow)
+    pstats.duration=pstats.duration+[conn['duration']]
+    pstats.isizes=merge(pstats.isizes, conn['incomingStats']['lengths'])
+    pstats.icontent=merge(pstats.icontent, conn['incomingStats']['content'])
+    pstats.ientropy=pstats.ientropy+[conn['incomingStats']['entropy']]
+    pstats.iflow=pstats.iflow+conn['incomingStats']['flow']
 
-    pstats.osizes=merge(pstats.osizes, conn.outgoingStats.lengths)
-    pstats.ocontent=merge(pstats.ocontent, conn.outgoingStats.content)
-    pstats.oentropy=pstats.oentropy+conn.outgoingStats.entropy
-    pstats.oflow=pstats.oflow+list(conn.outgoingStats.flow)
+    pstats.osizes=merge(pstats.osizes, conn['outgoingStats']['lengths'])
+    pstats.ocontent=merge(pstats.ocontent, conn['outgoingStats']['content'])
+    pstats.oentropy=pstats.oentropy+[conn['outgoingStats']['entropy']]
+    pstats.oflow=pstats.oflow+conn['outgoingStats']['flow']
 
   pistats=DirectionalSummaryStats(lengths=pstats.isizes, content=pstats.icontent, entropy=pstats.ientropy, flow=pstats.iflow)
   postats=DirectionalSummaryStats(lengths=pstats.osizes, content=pstats.ocontent, entropy=pstats.oentropy, flow=pstats.oflow)
   dpstats=ProtocolStats(protocol=protocol, duration=pstats.duration, incomingStats=pistats, outgoingStats=postats)
-  dpstats.save('protocols')
+  dpstats.save(dataset+'-protocols')
 
-dataset=sys.argv[1]
-protocol=sys.argv[2]
-if not os.path.exists('conns'):
-  os.mkdir('conns')
-if not os.path.exists('datasets'):
-  os.mkdir('datasets')
-if not os.path.exists('protocols'):
-  os.mkdir('protocols')
-protocolDataMap={}
-if not os.path.exists('conns/'+dataset):
-  os.mkdir('conns/'+dataset)
-if not os.path.exists('datasets/'+dataset):
-  os.mkdir('datasets/'+dataset)
-protocols=os.listdir('pcaps/'+dataset)
-if not protocol in protocolDataMap:
-  protocolDataMap[protocol]=[]
-protocolData=protocolDataMap[protocol]
+def load(path):
+  f=open(path)
+  bs=f.read()
+  f.close()
+  return json.loads(bs)
 
-if not os.path.exists('conns/'+dataset+'/'+protocol):
-  os.mkdir('conns/'+dataset+'/'+protocol)
-pcaps=os.listdir('pcaps/'+dataset+'/'+protocol)
-conns=[]
-for pcap in pcaps:
-  if not os.path.exists('conns/'+dataset+'/'+protocol+'/'+pcap):
-    os.mkdir('conns/'+dataset+'/'+protocol+'/'+pcap)
-  conns=conns+makeConns(dataset, protocol, pcap, portTable[protocol])
-protocolData.append(makeDatasetProtocol(dataset, protocol, conns))
-protocolDataMap[protocol]=protocolData
-for protocol in protocolDataMap:
-  makeProtocol(protocol, protocolDataMap[protocol])
+def getConns(dataset, protocol):
+  conns=[]
+  for file in os.listdir(dataset+'/'+protocol):
+    conn=load(dataset+'/'+protocol+'/'+file)
+    conns.append(conn)
+  return conns
+
+if not os.path.exists('training-protocols'):
+  os.mkdir('training-protocols')
+if not os.path.exists('testing-protocols'):
+  os.mkdir('testing-protocols')
+for dataset in ['training', 'testing']:
+  protocols=os.listdir(dataset)
+  for protocol in protocols:
+    makeProtocol(dataset, protocol, getConns(dataset, protocol))

@@ -103,3 +103,10 @@ This will take the results of the tests and generate scores. A score is a predic
 a better fit for the test data.
 
 The output will be written to the scores/ directory.
+
+Run: python score-fit.py [adversary]
+For instance, "python score-fit.py Tor-HTTPS"
+
+This will look at the scores from the tests and print out a summary of the true and false positives and negatives, as well as the number of
+unknown results. Looking at this output will enable you to determine which features make good distinguishers for the specific protocol pair
+you are testing.
